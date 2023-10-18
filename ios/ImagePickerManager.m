@@ -473,6 +473,21 @@ RCT_EXPORT_METHOD(showImagePicker:(NSDictionary *)options callback:(RCTResponseS
                 [self.response setObject:videoRefURL.absoluteString forKey:@"origURL"];
             }
 
+            if (videoDestinationURL) {
+                // duration
+                AVURLAsset *asset = [AVURLAsset assetWithURL:videoDestinationURL];
+                CMTime time = [asset duration];
+                int second = (int)ceil(time.value/time.timescale);
+                [self.response setObject:[NSNumber numberWithInteger:second] forKey:@"duration"];
+                // fileSize
+                NSNumber *fileSizeValue = nil;
+                NSError *fileSizeError = nil;
+                [videoDestinationURL getResourceValue:&fileSizeValue forKey:NSURLFileSizeKey error:&fileSizeError];
+                if (fileSizeValue){
+                    [self.response setObject:fileSizeValue forKey:@"fileSize"];
+                }
+            }
+
             NSDictionary *storageOptions = [self.options objectForKey:@"storageOptions"];
             if (storageOptions && [[storageOptions objectForKey:@"cameraRoll"] boolValue] == YES && self.picker.sourceType == UIImagePickerControllerSourceTypeCamera) {
                 ALAssetsLibrary *library = [[ALAssetsLibrary alloc] init];
