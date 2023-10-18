@@ -468,6 +468,16 @@ RCT_EXPORT_METHOD(showImagePicker:(NSDictionary *)options callback:(RCTResponseS
                 }
             }
 
+            // duration
+            [self.response setObject:[NSNumber numberWithDouble:CMTimeGetSeconds([AVAsset assetWithURL:videoDestinationURL].duration)] forKey:@"duration"];
+            // size
+            NSNumber *fileSizeValue = nil;
+            NSError *fileSizeError = nil;
+            [videoDestinationURL getResourceValue:&fileSizeValue forKey:NSURLFileSizeKey error:&fileSizeError];
+            if (fileSizeValue){
+                [self.response setObject:fileSizeValue forKey:@"fileSize"];
+            }
+
             [self.response setObject:videoDestinationURL.absoluteString forKey:@"uri"];
             if (videoRefURL.absoluteString) {
                 [self.response setObject:videoRefURL.absoluteString forKey:@"origURL"];
