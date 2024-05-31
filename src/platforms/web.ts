@@ -63,32 +63,21 @@ export function imageLibrary(
   return new Promise((resolve) => {
     input.addEventListener('change', async () => {
       if (input.files) {
-        if (options.selectionLimit! <= 1) {
-          const img = await readFile(input.files[0], {
-            includeBase64: options.includeBase64,
-          });
 
-          const result = {assets: [img]};
+        const imgs = await Promise.all(
+          Array.from(input.files).map((file) =>
+            readFile(file, {includeBase64: options.includeBase64}),
+          ),
+        );
 
-          if (callback) callback(result);
+        const result = {
+          didCancel: false,
+          assets: imgs,
+        };
 
-          resolve(result);
-        } else {
-          const imgs = await Promise.all(
-            Array.from(input.files).map((file) =>
-              readFile(file, {includeBase64: options.includeBase64}),
-            ),
-          );
+        if (callback) callback(result);
 
-          const result = {
-            didCancel: false,
-            assets: imgs,
-          };
-
-          if (callback) callback(result);
-
-          resolve(result);
-        }
+        resolve(result);
       }
       document.body.removeChild(input);
     });
@@ -119,6 +108,7 @@ function readFile(
           uri: uri as string,
           width: 0,
           height: 0,
+          file: targetFile
         });
 
       if (typeof uri === 'string') {
@@ -137,6 +127,7 @@ function readFile(
             ...(options.includeBase64 && {
               base64: uri.substr(uri.indexOf(',') + 1),
             }),
+            file: targetFile
           });
         image.onerror = () => returnRaw();
       } else {

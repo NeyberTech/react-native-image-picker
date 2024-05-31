@@ -46,6 +46,7 @@ export interface Asset {
   bitrate?: number;
   timestamp?: string;
   id?: string;
+  file?: Blob;
 }
 
 export interface ImagePickerResponse {
