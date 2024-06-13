@@ -65,7 +65,7 @@ export function imageLibrary(
       if (input.files) {
 
         const imgs = await Promise.all(
-          Array.from(input.files).map((file) =>
+          Array.from(input.files).slice(0, options.selectionLimit).map((file) =>
             readFile(file, {includeBase64: options.includeBase64}),
           ),
         );
