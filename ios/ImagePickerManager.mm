@@ -277,7 +277,7 @@ CGImagePropertyOrientation CGImagePropertyOrientationForUIImageOrientation(UIIma
 
     // 使用与源文件相同的压缩预设，但保留文件格式
     AVURLAsset *asset = [AVURLAsset URLAssetWithURL:videoDestinationURL options:nil];
-    AVAssetExportSession *exportSession = [[AVAssetExportSession alloc] initWithAsset:asset presetName:AVAssetExportPresetMediumQuality];
+    AVAssetExportSession *exportSession = [[AVAssetExportSession alloc] initWithAsset:asset presetName:AVAssetExportPreset960x540];
 
     exportSession.outputURL = outputURL;
     exportSession.outputFileType = [self getFileTypeForExtension:fileExtension]; // 获取文件类型
