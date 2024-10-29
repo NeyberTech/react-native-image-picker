@@ -237,72 +237,80 @@ CGImagePropertyOrientation CGImagePropertyOrientationForUIImageOrientation(UIIma
         UISaveVideoAtPathToSavedPhotosAlbum(url.path, nil, nil, nil);
     }
 
-    NSFileManager *fileManager = [NSFileManager defaultManager];
+    if (![url.URLByResolvingSymlinksInPath.path isEqualToString:videoDestinationURL.URLByResolvingSymlinksInPath.path]) {
+        NSFileManager *fileManager = [NSFileManager defaultManager];
 
-    // 检查视频源路径是否可写
-    if (![fileManager isWritableFileAtPath:[url path]]) {
-        NSLog(@"Error: Video source path is not writable: %@", url.path);
-        return nil;
-    }
-
-    // 删除已存在的目标文件
-    if ([fileManager fileExistsAtPath:videoDestinationURL.path]) {
-        NSError *deleteError;
-        [fileManager removeItemAtURL:videoDestinationURL error:&deleteError];
-        if (deleteError) {
-            NSLog(@"Error deleting existing file: %@", deleteError.localizedDescription);
-            return nil;
-        }
-    }
-
-    // 移动或复制视频文件
-    if (url) {
-        NSError *fileError = nil;
-        if ([fileManager isWritableFileAtPath:[url path]]) {
-            [fileManager moveItemAtURL:url toURL:videoDestinationURL error:&fileError];
-        } else {
-            [fileManager copyItemAtURL:url toURL:videoDestinationURL error:&fileError];
+        // Delete file if it already exists
+        if ([fileManager fileExistsAtPath:videoDestinationURL.path]) {
+            [fileManager removeItemAtURL:videoDestinationURL error:nil];
         }
 
-        if (fileError) {
-            NSLog(@"Error moving or copying file: %@", fileError.localizedDescription);
-            return nil;
+        if (url) { // Protect against reported crash
+            if ([fileManager isWritableFileAtPath:[url path]]) {
+                [fileManager moveItemAtURL:url toURL:videoDestinationURL error:error];
+            } else {
+                [fileManager copyItemAtURL:url toURL:videoDestinationURL error:error];
+            }
+
+            if (error && *error) {
+                return nil;
+            }
         }
     }
 
     NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
 
-    // 使用与源文件相同的扩展名和类型
-    NSURL *outputURL = [NSURL fileURLWithPath:[path stringByAppendingPathExtension:fileExtension]];
+    // 保留原格式压缩视频
+    if (true) {
+        NSURL *parentURL = [videoDestinationURL URLByDeletingLastPathComponent];
+        NSString *path = [[parentURL.path stringByAppendingString:@"/"] stringByAppendingString:[[NSUUID UUID] UUIDString]];
+        path = [path stringByAppendingString:@".mp4"];
+        NSURL *outputURL = [NSURL fileURLWithPath:path];
 
-    // 使用与源文件相同的压缩预设，但保留文件格式
-    AVURLAsset *asset = [AVURLAsset URLAssetWithURL:videoDestinationURL options:nil];
-    AVAssetExportSession *exportSession = [[AVAssetExportSession alloc] initWithAsset:asset presetName:AVAssetExportPreset960x540];
+        [[NSFileManager defaultManager] removeItemAtURL:outputURL error:nil];
+        AVURLAsset *asset = [AVURLAsset URLAssetWithURL:videoDestinationURL options:nil];
+        AVAssetExportSession *exportSession = [[AVAssetExportSession alloc] initWithAsset:asset presetName:AVAssetExportPresetMediumQuality]; // 720p压缩
 
-    exportSession.outputURL = outputURL;
-    exportSession.outputFileType = [self getFileTypeForExtension:fileExtension]; // 获取文件类型
-    exportSession.shouldOptimizeForNetworkUse = YES;
+        exportSession.outputURL = outputURL;
+        exportSession.outputFileType = AVFileTypeMPEG4;
+        exportSession.shouldOptimizeForNetworkUse = YES;
 
-    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+        dispatch_semaphore_t sem = dispatch_semaphore_create(0);
 
-    [exportSession exportAsynchronouslyWithCompletionHandler:^{
-        if (exportSession.status == AVAssetExportSessionStatusCompleted) {
-            CGSize dimensions = [ImagePickerUtils getVideoDimensionsFromUrl:outputURL];
-            response[@"fileName"] = outputURL.lastPathComponent;
-            response[@"duration"] = @(CMTimeGetSeconds(asset.duration));
-            response[@"uri"] = outputURL.absoluteString;
-            response[@"type"] = [ImagePickerUtils getFileTypeFromUrl:outputURL];
-            response[@"fileSize"] = [ImagePickerUtils getFileSizeFromUrl:outputURL];
-            response[@"width"] = @(dimensions.width);
-            response[@"height"] = @(dimensions.height);
-            NSLog(@"Video compression succeeded.");
-        } else {
-            NSLog(@"Video compression failed: %@", exportSession.error.localizedDescription);
+        [exportSession exportAsynchronouslyWithCompletionHandler:^(void) {
+            if (exportSession.status == AVAssetExportSessionStatusCompleted) {
+                CGSize dimensions = [ImagePickerUtils getVideoDimensionsFromUrl:outputURL];
+                response[@"fileName"] = [outputURL lastPathComponent];
+                response[@"duration"] = [NSNumber numberWithDouble:CMTimeGetSeconds([AVAsset assetWithURL:outputURL].duration)];
+                response[@"uri"] = outputURL.absoluteString;
+                response[@"type"] = [ImagePickerUtils getFileTypeFromUrl:outputURL];
+                response[@"fileSize"] = [ImagePickerUtils getFileSizeFromUrl:outputURL];
+                response[@"width"] = @(dimensions.width);
+                response[@"height"] = @(dimensions.height);
+
+                dispatch_semaphore_signal(sem);
+            } else if (exportSession.status == AVAssetExportSessionStatusFailed || exportSession.status == AVAssetExportSessionStatusCancelled) {
+                dispatch_semaphore_signal(sem);
+            }
+        }];
+
+        dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
+    } else {
+        CGSize dimensions = [ImagePickerUtils getVideoDimensionsFromUrl:videoDestinationURL];
+        response[@"fileName"] = fileName;
+        response[@"duration"] = [NSNumber numberWithDouble:CMTimeGetSeconds([AVAsset assetWithURL:videoDestinationURL].duration)];
+        response[@"uri"] = videoDestinationURL.absoluteString;
+        response[@"type"] = [ImagePickerUtils getFileTypeFromUrl:videoDestinationURL];
+        response[@"fileSize"] = [ImagePickerUtils getFileSizeFromUrl:videoDestinationURL];
+        response[@"width"] = @(dimensions.width);
+        response[@"height"] = @(dimensions.height);
+
+        if (phAsset) {
+            response[@"timestamp"] = [self getDateTimeInUTC:phAsset.creationDate];
+            response[@"id"] = phAsset.localIdentifier;
+            // Add more extra data here ...
         }
-        dispatch_semaphore_signal(sem);
-    }];
-
-    dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
+    }
 
     return response;
 }
