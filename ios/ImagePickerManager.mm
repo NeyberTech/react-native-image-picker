@@ -74,32 +74,33 @@ RCT_EXPORT_METHOD(launchImageLibrary:(NSDictionary *)options callback:(RCTRespon
 
     self.options = options;
 
-// #if __has_include(<PhotosUI/PHPicker.h>)
-//     if (@available(iOS 14, *)) {
-//         if (target == library) {
-//             PHPickerConfiguration *configuration = [ImagePickerUtils makeConfigurationFromOptions:options target:target];
-//             PHPickerViewController *picker = [[PHPickerViewController alloc] initWithConfiguration:configuration];
-//             picker.delegate = self;
-//             picker.modalPresentationStyle = [RCTConvert UIModalPresentationStyle:options[@"presentationStyle"]];
-//             picker.presentationController.delegate = self;
+#if __has_include(<PhotosUI/PHPicker.h>)
+    if (@available(iOS 14, *)) {
+        NSString *mediaType = self.options[@"mediaType"];
+        if (target == library && ![mediaType isEqualToString:@"video"]) {
+            PHPickerConfiguration *configuration = [ImagePickerUtils makeConfigurationFromOptions:options target:target];
+            PHPickerViewController *picker = [[PHPickerViewController alloc] initWithConfiguration:configuration];
+            picker.delegate = self;
+            picker.modalPresentationStyle = [RCTConvert UIModalPresentationStyle:options[@"presentationStyle"]];
+            picker.presentationController.delegate = self;
 
-//             if([self.options[@"includeExtra"] boolValue]) {
+            if([self.options[@"includeExtra"] boolValue]) {
 
-//                 [self checkPhotosPermissions:^(BOOL granted) {
-//                     if (!granted) {
-//                         self.callback(@[@{@"errorCode": errPermission}]);
-//                         return;
-//                     }
-//                     [self showPickerViewController:picker];
-//                 }];
-//             } else {
-//                 [self showPickerViewController:picker];
-//             }
+                [self checkPhotosPermissions:^(BOOL granted) {
+                    if (!granted) {
+                        self.callback(@[@{@"errorCode": errPermission}]);
+                        return;
+                    }
+                    [self showPickerViewController:picker];
+                }];
+            } else {
+                [self showPickerViewController:picker];
+            }
 
-//             return;
-//         }
-//     }
-// #endif
+            return;
+        }
+    }
+#endif
     UIImagePickerController *picker = [[UIImagePickerController alloc] init];
     [ImagePickerUtils setupPickerFromOptions:picker options:self.options target:target];
     picker.delegate = self;
