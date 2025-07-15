@@ -206,6 +206,12 @@ public class Utils {
     // When decoding a jpg to bitmap all exif meta data will be lost, so make sure to copy orientation exif to new file else image might have wrong orientations
     public static Uri resizeImage(Uri uri, Context context, Options options) {
         try {
+            String mimeType = getMimeType(uri, context);
+            if ("image/gif".equalsIgnoreCase(mimeType)) {
+                // GIF 不处理，直接返回原 URI
+                return uri;
+            }
+
             int[] origDimens = getImageDimensions(uri, context);
 
             if (!shouldResizeImage(origDimens[0], origDimens[1], options)) {
@@ -215,7 +221,6 @@ public class Utils {
             int[] newDimens = getImageDimensBasedOnConstraints(origDimens[0], origDimens[1], options);
 
             try (InputStream imageStream = context.getContentResolver().openInputStream(uri)) {
-                String mimeType = getMimeType(uri, context);
                 Bitmap b = BitmapFactory.decodeStream(imageStream);
                 String originalOrientation = getOrientation(uri, context);
 
