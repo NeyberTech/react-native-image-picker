@@ -61,8 +61,10 @@ export function imageLibrary(
   document.body.appendChild(input);
 
   return new Promise((resolve) => {
+    let cancelCheckTimer: ReturnType<typeof setTimeout> | undefined;
     input.addEventListener('change', async () => {
-      if (input.files) {
+      clearTimeout(cancelCheckTimer);
+      if (input.files?.length) {
 
         const imgs = await Promise.all(
           Array.from(input.files).slice(0, options.selectionLimit).map((file) =>
@@ -78,10 +80,26 @@ export function imageLibrary(
         if (callback) callback(result);
 
         resolve(result);
+      } else {
+        resolve({ didCancel: true, assets: [] });
       }
       document.body.removeChild(input);
+      window.removeEventListener('focus', onFocusBack);
     });
 
+    const onFocusBack = () => {
+      clearTimeout(cancelCheckTimer);
+      // 等 500ms 等待可能的 change 事件
+      cancelCheckTimer = setTimeout(() => {
+        if (!input.files || input.files.length === 0) {
+          resolve({ didCancel: true, assets: [] });
+        }
+        document.body.removeChild(input);
+        window.removeEventListener('focus', onFocusBack);
+      }, 500);
+    };
+
+    window.addEventListener('focus', onFocusBack, { once: true });
     const event = new MouseEvent('click');
     input.dispatchEvent(event);
   });
