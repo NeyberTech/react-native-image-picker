@@ -247,23 +247,22 @@ CGImagePropertyOrientation CGImagePropertyOrientationForUIImageOrientation(UIIma
         }
 
         if (url) { // Protect against reported crash
+            if ([fileManager isWritableFileAtPath:[url path]]) {
+                [fileManager moveItemAtURL:url toURL:videoDestinationURL error:error];
+            } else {
+                [fileManager copyItemAtURL:url toURL:videoDestinationURL error:error];
+            }
 
-          // If we have write access to the source file, move it. Otherwise use copy.
-          if ([fileManager isWritableFileAtPath:[url path]]) {
-            [fileManager moveItemAtURL:url toURL:videoDestinationURL error:error];
-          } else {
-            [fileManager copyItemAtURL:url toURL:videoDestinationURL error:error];
-          }
-
-          if (error && *error) {
-              return nil;
-          }
+            if (error && *error) {
+                return nil;
+            }
         }
     }
 
     NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
 
-    if([self.options[@"formatAsMp4"] boolValue] && ![fileExtension isEqualToString:@"mp4"]) {
+    // 保留原格式压缩视频
+    if (true) {
         NSURL *parentURL = [videoDestinationURL URLByDeletingLastPathComponent];
         NSString *path = [[parentURL.path stringByAppendingString:@"/"] stringByAppendingString:[[NSUUID UUID] UUIDString]];
         path = [path stringByAppendingString:@".mp4"];
@@ -271,7 +270,7 @@ CGImagePropertyOrientation CGImagePropertyOrientationForUIImageOrientation(UIIma
 
         [[NSFileManager defaultManager] removeItemAtURL:outputURL error:nil];
         AVURLAsset *asset = [AVURLAsset URLAssetWithURL:videoDestinationURL options:nil];
-        AVAssetExportSession *exportSession = [[AVAssetExportSession alloc] initWithAsset:asset presetName:AVAssetExportPresetPassthrough];
+        AVAssetExportSession *exportSession = [[AVAssetExportSession alloc] initWithAsset:asset presetName:AVAssetExportPresetMediumQuality]; // 720p压缩
 
         exportSession.outputURL = outputURL;
         exportSession.outputFileType = AVFileTypeMPEG4;
@@ -281,14 +280,14 @@ CGImagePropertyOrientation CGImagePropertyOrientationForUIImageOrientation(UIIma
 
         [exportSession exportAsynchronouslyWithCompletionHandler:^(void) {
             if (exportSession.status == AVAssetExportSessionStatusCompleted) {
-                CGSize dimentions = [ImagePickerUtils getVideoDimensionsFromUrl:outputURL];
+                CGSize dimensions = [ImagePickerUtils getVideoDimensionsFromUrl:outputURL];
                 response[@"fileName"] = [outputURL lastPathComponent];
                 response[@"duration"] = [NSNumber numberWithDouble:CMTimeGetSeconds([AVAsset assetWithURL:outputURL].duration)];
                 response[@"uri"] = outputURL.absoluteString;
                 response[@"type"] = [ImagePickerUtils getFileTypeFromUrl:outputURL];
                 response[@"fileSize"] = [ImagePickerUtils getFileSizeFromUrl:outputURL];
-                response[@"width"] = @(dimentions.width);
-                response[@"height"] = @(dimentions.height);
+                response[@"width"] = @(dimensions.width);
+                response[@"height"] = @(dimensions.height);
 
                 dispatch_semaphore_signal(sem);
             } else if (exportSession.status == AVAssetExportSessionStatusFailed || exportSession.status == AVAssetExportSessionStatusCancelled) {
@@ -296,19 +295,18 @@ CGImagePropertyOrientation CGImagePropertyOrientationForUIImageOrientation(UIIma
             }
         }];
 
-
         dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
     } else {
-        CGSize dimentions = [ImagePickerUtils getVideoDimensionsFromUrl:videoDestinationURL];
+        CGSize dimensions = [ImagePickerUtils getVideoDimensionsFromUrl:videoDestinationURL];
         response[@"fileName"] = fileName;
         response[@"duration"] = [NSNumber numberWithDouble:CMTimeGetSeconds([AVAsset assetWithURL:videoDestinationURL].duration)];
         response[@"uri"] = videoDestinationURL.absoluteString;
         response[@"type"] = [ImagePickerUtils getFileTypeFromUrl:videoDestinationURL];
         response[@"fileSize"] = [ImagePickerUtils getFileSizeFromUrl:videoDestinationURL];
-        response[@"width"] = @(dimentions.width);
-        response[@"height"] = @(dimentions.height);
+        response[@"width"] = @(dimensions.width);
+        response[@"height"] = @(dimensions.height);
 
-        if(phAsset){
+        if (phAsset) {
             response[@"timestamp"] = [self getDateTimeInUTC:phAsset.creationDate];
             response[@"id"] = phAsset.localIdentifier;
             // Add more extra data here ...
@@ -316,6 +314,17 @@ CGImagePropertyOrientation CGImagePropertyOrientationForUIImageOrientation(UIIma
     }
 
     return response;
+}
+
+// 获取文件类型的方法
+- (NSString *)getFileTypeForExtension:(NSString *)fileExtension {
+    if ([fileExtension isEqualToString:@"mp4"]) {
+        return AVFileTypeMPEG4;
+    } else if ([fileExtension isEqualToString:@"mov"]) {
+        return AVFileTypeQuickTimeMovie;
+    } 
+    // 其他文件格式可以根据需要添加
+    return AVFileTypeMPEG4; // 默认返回
 }
 
 - (NSString *) getDateTimeInUTC:(NSDate *)date {
