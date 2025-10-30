@@ -38,16 +38,16 @@ export function imageLibrary(
   callback?: Callback,
 ): Promise<ImagePickerResponse> {
   // Only supporting 'photo' mediaType for now.
-  if (options.mediaType !== 'photo') {
-    const result = {
-      errorCode: 'others' as ErrorCode,
-      errorMessage: 'For now, only photo mediaType is supported for web',
-    };
+  // if (options.mediaType !== 'photo') {
+  //   const result = {
+  //     errorCode: 'others' as ErrorCode,
+  //     errorMessage: 'For now, only photo mediaType is supported for web',
+  //   };
 
-    if (callback) callback(result);
+  //   if (callback) callback(result);
 
-    return Promise.resolve(result);
-  }
+  //   return Promise.resolve(result);
+  // }
 
   const input = document.createElement('input');
   input.style.display = 'none';
@@ -66,15 +66,9 @@ export function imageLibrary(
       clearTimeout(cancelCheckTimer);
       if (input.files?.length) {
 
-        const imgs = await Promise.all(
-          Array.from(input.files).slice(0, options.selectionLimit).map((file) =>
-            readFile(file, {includeBase64: options.includeBase64}),
-          ),
-        );
-
         const result = {
           didCancel: false,
-          assets: imgs,
+          assets: Array.from(input.files).slice(0, options.selectionLimit),
         };
 
         if (callback) callback(result);
@@ -162,6 +156,7 @@ function getWebMediaType(mediaType: MediaType) {
     photo: 'image/*',
     video: 'video/*',
     mixed: 'image/*,video/*',
+    'pdf&txt': '.pdf,.txt,application/pdf,text/plain'
   };
 
   return webMediaTypes[mediaType] ?? webMediaTypes.photo;
